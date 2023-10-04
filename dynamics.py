@@ -22,7 +22,7 @@ def diffEqn(t, state, params):
 
     phi, theta, psi = state[0:3];
     
-    p, q, r = state[4:7];
+    p, q, r = state[3:6];
     
     u, v, w = state[6:9];
     

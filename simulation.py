@@ -76,7 +76,7 @@ def main():
     Kp_Y = 0; Ki_Y = 0; Kd_Y = 0;
     Kp_z = 0.15; Ki_z = 0.01; Kd_z = 1.0;
 
-    Kp_phi = 0.005; Ki_phi = 0.000; Kd_phi = 0.01;
+    Kp_phi = 10; Ki_phi = 0.000; Kd_phi = 0.1;
     Kp_theta = 0; Ki_theta = 0; Kd_theta = 0;
     Kp_psi = 0; Ki_psi = 0; Kd_psi = 0;
 
@@ -175,7 +175,7 @@ def main():
         p_err_int = p_err_int + (p_err*dt);
         p_err_dot = (p_err - p_err_prev) / dt;
         p_err_prev = p_err;
-        print(p_err)
+        
         q_err = q_des - q;
         q_err_int = q_err_int + (q_err*dt);
         q_err_dot = (q_err - q_err_prev) / dt;
