@@ -51,7 +51,7 @@ class drone:
         
         self.state = []
 
-agent1 = drone([0, 0, 0]);
+#agent1 = drone([0, 0, 0]);
 
 #agent1.Rot(0.3452, 0.6342, 0.1231)
 
