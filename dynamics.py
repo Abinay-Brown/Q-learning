@@ -5,20 +5,11 @@ from numpy import sin, cos, tan, sqrt
 
 def diffEqn(t, state, params):
     
-    m = params[0]
-    g = params[1];
+    m, g, Ixx, Iyy, Izz, l, J, Ct, Ctheta = params[0:9]; 
+    u1, u2, u3, u4 = params[9:13]
     
-    Ixx = params[2];
-    Iyy = params[3];
-    Izz = params[4];    
-    J = params[5];
 
-    Omega = params[6];
-    
-    u1 = params[7]
-    u2 = params[8]
-    u3 = params[9]
-    u4 = params[10]
+    Omega, w1, w2, w3, w4 = Inp2Omega(u1, u2, u3, u4, Ct, Ctheta, l)
 
     phi, theta, psi = state[0:3];
     

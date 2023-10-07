@@ -12,7 +12,6 @@ def LQR_gain():
     return L
 
 
+def Q_learning_dynamics():
 
-if  __name__ == "__main__":
-
-    print(LQR_gain())
+    return
