@@ -1,15 +1,22 @@
 import numpy as np
 import control as ct
 from params import *
+from dynamics import *
 from numpy import sin, cos, tan, ones, dot
-def LQR_gain():
-    n, m = 3, 1;
-    A = np.array([[-1.01887, 0.90506, -0.00215], [0.82225, -1.07741, -0.17555],[ 0, 0, -1]]);
-    B = np.array([[0.0],[0.0],[1.0]]);
-    M = np.eye(n, n);
-    R = 0.1*np.eye(m, m);
-    L = ct.lqr(A, B, M, R)
-    return L
+from scipy.interpolate import CubicSpline
+
+
+def interp2PWC(y, xi, xf):
+    row = len(y)
+    if row == 1:
+        xdata = np.linspace(-1.0, xf, row + 1)
+        itp = CubicSpline([xdata[0], xdata[-1]], [y[0], y[-1]], bc_type='clamped')
+    else:
+        xdata = np.linspace(xi, xf, row)
+        itp = CubicSpline(xdata, y, bc_type='clamped')
+
+    return itp(xdata)
+
 
 # Linearized inertial frame
 def state_space(state, inputs):
@@ -82,3 +89,4 @@ def Q_learning_dynamics(x1, x2, S):
     x_save = [[x0; Wc0; Wa10; Wa20; Wa30; Wa40],]
     uvec = [u0, ]    
     return
+
