@@ -1,7 +1,7 @@
 import numpy as np
 import control as ct
 from params import *
-from numpy import sin, cos, tan
+from numpy import sin, cos, tan, ones, dot
 def LQR_gain():
     n, m = 3, 1;
     A = np.array([[-1.01887, 0.90506, -0.00215], [0.82225, -1.07741, -0.17555],[ 0, 0, -1]]);
@@ -48,7 +48,7 @@ def babyCT_b(t, state, params):
     
 def Q_learning_dynamics(x1, x2, S):
     n = 6
-    m = 3
+    m = 4
     
     M = 10 * np.eye(6)
     R = 2 * np.eye(4)
@@ -63,5 +63,22 @@ def Q_learning_dynamics(x1, x2, S):
     xf = np.array([x2[0], x2[1], x2[2], 0, 0, 0])
     x0 = np.array([x1[0], x1[1], x1[1], 0, 0, 0])
     
+    # Critic Weights Wc0 = WcT*v(t)-> (n+m)(n+m+1)/2x1 = (6+4)(6+4+1)/2x1=55x1
+    Wc0  = ones((55, 1))
+
+    # Actor Weights n x m
+    Wa10 = ones((n, ))
+    Wa20 = ones((n, ))
+    Wa30 = ones((n, ))
+    Wa40 = ones((n, ))
+
+
+    # make sure the dimension multiplication is correct
     
+    u0 = [dot(Wa10.T, x0-xf), dot(Wa20.T, x0-xf), dot(Wa30.T, x0-xf), dot(Wa40.T, x0-xf)]
+    
+    # Variables to record (Check if dimensions are correct for appending)
+    t_save = [0, ]
+    x_save = [[x0; Wc0; Wa10; Wa20; Wa30; Wa40],]
+    uvec = [u0, ]    
     return
