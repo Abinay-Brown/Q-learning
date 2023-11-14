@@ -5,7 +5,7 @@ from scipy.integrate import ode
 from scipy.integrate import odeint
 from dynamics import Inp2Omega, Rot, Trot, diffEqn
 import matplotlib.pyplot as plt
-
+from params import *
 
 # Setpoints
 X_des = 0;
