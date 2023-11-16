@@ -51,7 +51,7 @@ def babyCT_b(t, state, params):
     
     # Updated Control
     ud = np.array([dot(Wa10.T, x-xf), dot(Wa20.T, x-xf), dot(Wa30.T, x-xf), dot(Wa40.T, x-xf)]).reshape(4, 1)
-    
+     
     # Interpolate delayed control and state
     ud_del = zeros(m, 1)
     x_del  = zeros(n, 1)
