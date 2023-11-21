@@ -85,7 +85,9 @@ def babyCT_b(t, state, params):
     
     # Kronecker Products
     diff = x-xf
-    U = np.array([diff[0], diff[1], diff[2], diff[3], diff[4], diff[5], ud[0], ud[1], ud[2],ud[3], ud[4]]).T
+    diff = diff.reshape((1, 6))
+    ud = ud.reshape((1, 4))
+    U = np.array([diff[0, 0], diff[0, 1], diff[0, 2], diff[0,3], diff[0,4], diff[0, 5], ud[0, 0], ud[0, 1], ud[0, 2],ud[0, 3]]).reshape((10, ))
     UkU = np.array([U[0]**2, U[0]*U[1], U[0]*U[2], U[0]*U[3], U[0]*U[4], U[0]*U[5], U[0]*U[6], U[0]*U[7], U[0]*U[8], U[0]*U[9],\
     U[1]**2, U[1]*U[2], U[1]*U[3], U[1]*U[4], U[1]*U[5], U[1]*U[6], U[1]*U[7], U[1]*U[8], U[0]*U[9],\
     U[2]**2, U[2]*U[3], U[2]*U[4], U[2]*U[5], U[2]*U[6], U[2]*U[7], U[2]*U[8], U[2]*U[9],\
@@ -98,6 +100,7 @@ def babyCT_b(t, state, params):
     U[9]**2]).reshape(55, 1)	
     
     Udel = hstack((x_del.T, ud_del.T))
+    Udel = Udel.reshape((10,))
     UkUdel = np.array([Udel[0]**2, Udel[0]*Udel[1], Udel[0]*Udel[2], Udel[0]*Udel[3], Udel[0]*Udel[4], Udel[0]*Udel[5], Udel[0]*Udel[6], Udel[0]*Udel[7], Udel[0]*Udel[8], Udel[0]*Udel[9],\
     Udel[1]**2, Udel[1]*Udel[2], Udel[1]*Udel[3], Udel[1]*Udel[4], Udel[1]*Udel[5], Udel[1]*Udel[6], Udel[1]*Udel[7], Udel[1]*Udel[8], Udel[0]*Udel[9],\
     Udel[2]**2, Udel[2]*Udel[3], Udel[2]*Udel[4], Udel[2]*Udel[5], Udel[2]*Udel[6], Udel[2]*Udel[7], Udel[2]*Udel[8], Udel[2]*Udel[9],\
@@ -113,6 +116,8 @@ def babyCT_b(t, state, params):
                     [Wc[-9], Wc[-6], Wc[-5], Wc[-4]],
                     [Wc[-8], Wc[-5], Wc[-3], Wc[-2]],
                     [Wc[-7], Wc[-4], Wc[-2], Wc[-1]]])
+    print(Quu)
+    Quu = Quu.reshape((4,4))   
     Quu_inv = inv(Quu)
     Qux = np.array([[Wc[6], Wc[15], Wc[23], Wc[30], Wc[36], Wc[41]],
                     [Wc[7], Wc[16], Wc[24], Wc[31], Wc[37], Wc[42]],
