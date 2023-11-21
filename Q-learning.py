@@ -5,6 +5,20 @@ from dynamics import *
 from numpy import sin, cos, tan, ones, dot, hstack, vstack, zeros, square
 from numpy.linalg import norm, inv
 from scipy.interpolate import CubicSpline
+from scipy.integrate import ode
+from agents import *
+
+#Global Parameters
+u1 = mass * g;
+u2 = 0;
+u3 = 0;
+u4 = 0;
+dt = 0.001;
+state = [0, 0, 0,  0, 0, 0,  0, 0, 0,  0, 0, 0]
+TC = [5, 5, 5, 0, 0, 0]; # Terminal Conditions
+params = [mass, g, Ixx, Iyy, Izz, l, J, Ct, Ctheta, u1, u2, u3, u4] 
+quad = drone(state, TC, params, PID_controller_gains)
+
 
 
 def interp2PWC(y, xi, xf):
@@ -16,12 +30,12 @@ def interp2PWC(y, xi, xf):
         xdata = np.linspace(xi, xf, row)
         itp = CubicSpline(xdata, y, bc_type='clamped')
 
-    return itp(xdata)
+    return itp
 
 
 
 def babyCT_b(t, state, params):
-
+    
     # Extract Q-learning dynamics parameters
     # state = [phi,theta, psi, p, q, r, u, v, w, X, Y, Z, Wc0(55), Wa0(6), Wa10(6), Wa20(6), Wa30(6), Wa40(6), P(1)]
     xf, T, Tf, M, R, Pt, percent, amplitude, alpha_a, alpha_c, u1_del, u2_del, u3_del, u4_del, x1_del, x2_del, x3_del, x4_del, x5_del, x6_del, p_del, u_save = params 
@@ -30,15 +44,15 @@ def babyCT_b(t, state, params):
     
     # Extract Drone dynamics Parameters
     drone_state = state[0:12]
-    phi, theta, psi, p, q, r, u, v, w, X, Y, Z = state[0:12]
+    phi, theta, psi, p, q, r, u, v, w, X, Y, Z = state[0, 0:12]
 
     # Q-learning Actor and critic weights
-    Wc = state[12:67].reshape(55, 1)
-    Wa10 = state[67: 73].reshape(6, 1)
-    Wa20 = state[73: 79].reshape(6, 1)
-    Wa30 = state[79: 85].reshape(6, 1)
-    Wa40 = state[85: 91].reshape(6, 1)
-    P = state[91]
+    Wc = state[0, 12:67].reshape(55, 1)
+    Wa10 = state[0, 67: 73].reshape(6, 1)
+    Wa20 = state[0, 73: 79].reshape(6, 1)
+    Wa30 = state[0, 79: 85].reshape(6, 1)
+    Wa40 = state[0, 85: 91].reshape(6, 1)
+    P = state[0, 91]
     
     # Q-learning state vector is global position and velocity
     # x = [X, Y, Z, U, V, W]
@@ -53,9 +67,9 @@ def babyCT_b(t, state, params):
     ud = np.array([dot(Wa10.T, x-xf), dot(Wa20.T, x-xf), dot(Wa30.T, x-xf), dot(Wa40.T, x-xf)]).reshape(4, 1)
      
     # Interpolate delayed control and state
-    ud_del = zeros(m, 1)
-    x_del  = zeros(n, 1)
-    
+    ud_del = zeros((m, 1))
+    x_del  = zeros((n, 1))
+
     ud_del[0, 0] = u1_del(t-T)
     ud_del[1, 0] = u2_del(t-T)
     ud_del[2, 0] = u3_del(t-T)
@@ -148,12 +162,11 @@ def babyCT_b(t, state, params):
         unew = ud
 
     # Convert [phi, theta, psi, altitude].T desired to u1, u2, u3, u4 moment and thrust control inputs using PID
-    PID_update(state, unew) 
+    u1, u2, u3, u4 = quad.PID_update(drone_state, unew[0, 0], unew[1, 0], unew[2, 0], unew[3, 0], dt) 
 
     # Do usave in here
     
-    drone_params = [mass, g, Ixx, Iyy, Izz, l, J, Ct, Ctheta, u1, u2, u3, u4]
-    drone_state_dot = dynamics(t, drone_state, drone_params)
+    drone_state_dot = dynamics(t, drone_state, quad.drone_params)
     phi_dot, theta_dot, psi_dot, p_dot, q_dot, r_dot, u_dot, v_dot, w_dot, U, V, W = drone_state_dot[0:12]
     
     dx = np.array([phi_dot, theta_dot, psi_dot, p_dot, q_dot, r_dot, u_dot, v_dot, w_dot, U, V, W]).reshape(1, 12)
@@ -161,6 +174,7 @@ def babyCT_b(t, state, params):
     # dWc -> 1x55
     # dWa10 -> 1x6 
     dotx = hstack((dx, dWc, dWa10.T, dWa20.T, dWa30.T, dWa40.T, dP))
+    
     return dotx
     
 
@@ -198,35 +212,96 @@ def Q_learning_dynamics(x1, x2, S):
 
     # make sure the dimension multiplication is correct
     
-    u0 = np.array([dot(Wa10.T, xi-xf), dot(Wa20.T, xi-xf), dot(Wa30.T, xi-xf), dot(Wa40.T, xi-xf)])
-    
-    # Appending the vectors after each row
-    t_save = hstack(([0],))
-    u_save = vstack((u0.T, ))
-    x_save = hstack((xi.T, Wc0.T, Wa10.T, Wa20.T, Wa30.T, Wa40.T, np.array([[0]])))
+    u0 = np.array([dot(Wa10.T, xi-xf), dot(Wa20.T, xi-xf), dot(Wa30.T, xi-xf), dot(Wa40.T, xi-xf)]).reshape((4, 1))
+    x0 = np.zeros((1, 12)).reshape((1, 12))
 
+    # Appending the vectors after each row
+    # state = [phi, theta, psi, p, q, r, u, v, w, X, Y, Z, Wc0(55), Wa0(6), Wa10(6), Wa20(6), Wa30(6), Wa40(6), P(1)]
+    t_save = vstack(([0],))
+    u_save = vstack((u0.T, ))
+    x_save = hstack((x0, Wc0.T, Wa10.T, Wa20.T, Wa30.T, Wa40.T, np.array([[0]]))) # This is all states
+    xq_save = hstack((xi.T, )) # saving Q-learning state vector
+    
     # Interpolate functions
+    
     u1_del = interp2PWC(u_save[:, 0], -1, 1)
     u2_del = interp2PWC(u_save[:, 1], -1, 1)
     u3_del = interp2PWC(u_save[:, 2], -1, 1)
     u4_del = interp2PWC(u_save[:, 3], -1, 1)
     
-    x1_del = interp2PWC(x_save[:, 0], -1, 1)
-    x2_del = interp2PWC(x_save[:, 1], -1, 1)
-    x3_del = interp2PWC(x_save[:, 2], -1, 1)
-    x4_del = interp2PWC(x_save[:, 3], -1, 1)
-    x5_del = interp2PWC(x_save[:, 4], -1, 1)
-    x6_del = interp2PWC(x_save[:, 5], -1, 1)
-    
+    # MAKE SURE TO USE THE CORRECT STATE VECTOR HERE
+    x1_del = interp2PWC(xq_save[:, 0], -1, 1)
+    x2_del = interp2PWC(xq_save[:, 1], -1, 1)
+    x3_del = interp2PWC(xq_save[:, 2], -1, 1)
+    x4_del = interp2PWC(xq_save[:, 3], -1, 1)
+    x5_del = interp2PWC(xq_save[:, 4], -1, 1)
+    x6_del = interp2PWC(xq_save[:, 5], -1, 1)
+    p_del = interp2PWC(x_save[:, -1], -1, 1)
     xdist = norm(xi[0:3, 0] - xf[0:3, 0])
     error = 0.25
     maxIter = 10000
-    
+    state = x_save
+    params = [xf, T, Tf, M, R, Pt, percent, amplitude, alpha_a, alpha_c, u1_del, u2_del, u3_del, u4_del, x1_del, x2_del, x3_del, x4_del, x5_del, x6_del, p_del, u_save]
+        
+    dotx = babyCT_b(0, state, params)
+    '''
     for iter in range(1, maxIter+1):
         t = [(iter-1)*T, iter*T]
         params = [xf, T, Tf, M, R, Pt, percent, amplitude, alpha_a, alpha_c, u1_del, u2_del, u3_del, u4_del, x1_del, x2_del, x3_del, x4_del, x5_del, x6_del, p_del, u_save]
         
+        t = np.arange((iter-1)*T, iter*T, dt)
+        sol = np.empty((len(t), 92))
         
-       
+        solver = ode(babyCT_b)
+        solver.set_integrator('dop853')
+        solver.set_f_params(params)
+        solver.set_initial_value(state, t[0])
+
+        i = 1;
+        sol[0] = state;
+        while solver.successful() or i < len(t):
+            solver.integrate(t[i])
+            solver.set_f_params(params)
+            sol[i] = solver.y
+            state = solver.y
+            phi, theta, psi = state[0, 0:3]
+            u, v, w = state[0, 6:9]
+            R_mat = Rot(phi, theta, psi)
+            
+            Vels = np.dot(R_mat, np.array([u, v, w]).T)
+            X = state[0, 9]
+            Y = state[0, 10]
+            Z = state[0, 11]
+            U = Vels[0]
+            V = Vels[1]
+            W = Vels[2]
+            
+            x = np.array([X, Y, Z, U, V, W]).reshape(6, 1)
+            
+            t_save = vstack((t_save, t[i]))
+            x_save = vstack((x_save, state))
+            xq_save = vstack((xq_save, x.T))
+            
+            # MAKE SURE TO SAVE U PROPERLY
+            u_save = vstack((u_save, ))
+            i = i + 1
+            print(state)
+    
+        # Interpolate functions
+        u1_del = interp2PWC(u_save[:, 0], -1, iter*T+0.01)
+        u2_del = interp2PWC(u_save[:, 1], -1, iter*T+0.01)
+        u3_del = interp2PWC(u_save[:, 2], -1, iter*T+0.01)
+        u4_del = interp2PWC(u_save[:, 3], -1, iter*T+0.01)
+
+        # MAKE SURE TO USE THE CORRECT STATE VECTOR HERE
+        x1_del = interp2PWC(xq_save[:, 0], -1, iter*T+0.01)
+        x2_del = interp2PWC(xq_save[:, 1], -1, iter*T+0.01)
+        x3_del = interp2PWC(xq_save[:, 2], -1, iter*T+0.01)
+        x4_del = interp2PWC(xq_save[:, 3], -1, iter*T+0.01)
+        x5_del = interp2PWC(xq_save[:, 4], -1, iter*T+0.01)
+        x6_del = interp2PWC(xq_save[:, 5], -1, iter*T+0.01)
+        p_del = interp2PWC(x_save[:, -1], -1, iter*T+0.01)
+       '''
     return
 
+Q_learning_dynamics([0, 0, 0], [5, 5, 5], 0)

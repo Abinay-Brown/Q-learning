@@ -1,4 +1,4 @@
-from numpy import pi
+from numpy import pi, cos, sin
 import numpy as np
 
 # DEFAULT QUADROTOR CONSTANTS
@@ -31,3 +31,4 @@ q_gain = np.array([0.05, 0.0001, 0])
 r_gain = np.array([0.05, 0.0001, 0])
 
 PID_controller_gains = np.vstack((alt_gains, phi_gains, theta_gains, psi_gains, p_gain, q_gain, r_gain))
+
