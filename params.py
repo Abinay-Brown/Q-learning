@@ -1,5 +1,5 @@
 from numpy import pi
-
+import numpy as np
 
 # DEFAULT QUADROTOR CONSTANTS
 # Mass Properties
@@ -20,13 +20,14 @@ Ctheta = 2.6839*(10**(-9))*(60/(2*pi))**2; # Moment Coefficient
 l = 0.171;
 g = 9.81;
 
-# DEFAULT PID GAINS
-Kp_Z = 0.1; Ki_Z = 0.0; Kd_Z = 0.5;
+# DEFAULT PID GAINS [Kp, Ki, Kd] gains
+alt_gains = np.array([0.1, 0.0, 0.5])
+phi_gains = np.array([5.5, 0.005, 0.1])
+theta_gains = np.array([6.5, 0.001, 0.1])
+psi_gains = np.array([0.5, 0.00, 0.02])
 
-Kp_phi = 5.5; Ki_phi = 0.005; Kd_phi = 0.1;
-Kp_theta = 6.5; Ki_theta = 0.001; Kd_theta = 0.1;
-Kp_psi = 0.5; Ki_psi = 0.00; Kd_psi = 0.02;
+p_gain = np.array([0.05, 0.0001, 0])
+q_gain = np.array([0.05, 0.0001, 0])
+r_gain = np.array([0.05, 0.0001, 0])
 
-Kp_p = 0.05; Ki_p = 0.0001; Kd_p = 0.0;
-Kp_q = 0.05; Ki_q = 0.0001; Kd_q = 0.0;
-Kp_r = 0.05; Ki_r = 0.0001; Kd_r = 0.0 ;
+PID_controller_gains = np.vstack((alt_gains, phi_gains, theta_gains, psi_gains, p_gain, q_gain, r_gain))
