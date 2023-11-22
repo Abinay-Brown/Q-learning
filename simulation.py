@@ -51,7 +51,7 @@ def main():
     while solver.successful() and iter < len(t):
         quad.PID_update(state, phi_des, theta_des, psi_des, Z_des, dt)
         solver.integrate(t[iter])
-        
+        dotx = diffEqn(t[iter], state, quad.drone_params)
         solver.set_f_params(quad.drone_params)
         sol[iter] = solver.y
         state = solver.y

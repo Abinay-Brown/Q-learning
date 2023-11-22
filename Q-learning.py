@@ -2,9 +2,10 @@ import numpy as np
 import control as ct
 from params import *
 from dynamics import *
-from numpy import sin, cos, tan, ones, dot, hstack, vstack, zeros, square
+from numpy import sin, cos, tan, ones, dot, hstack, vstack, zeros, square, exp
 from numpy.linalg import norm, inv
 from scipy.interpolate import CubicSpline
+from dynamics import *
 from scipy.integrate import ode
 from agents import *
 
@@ -17,6 +18,7 @@ dt = 0.001;
 state = [0, 0, 0,  0, 0, 0,  0, 0, 0,  0, 0, 0]
 TC = [5, 5, 5, 0, 0, 0]; # Terminal Conditions
 params = [mass, g, Ixx, Iyy, Izz, l, J, Ct, Ctheta, u1, u2, u3, u4] 
+u_save = np.array([u1, u2, u3, u4])
 quad = drone(state, TC, params, PID_controller_gains)
 
 
@@ -35,15 +37,16 @@ def interp2PWC(y, xi, xf):
 
 
 def babyCT_b(t, state, params):
-    
+
     # Extract Q-learning dynamics parameters
     # state = [phi,theta, psi, p, q, r, u, v, w, X, Y, Z, Wc0(55), Wa0(6), Wa10(6), Wa20(6), Wa30(6), Wa40(6), P(1)]
     xf, T, Tf, M, R, Pt, percent, amplitude, alpha_a, alpha_c, u1_del, u2_del, u3_del, u4_del, x1_del, x2_del, x3_del, x4_del, x5_del, x6_del, p_del, u_save = params 
     n, m = 6, 4
     
+    state = np.array(state).reshape((1, 92))
     
     # Extract Drone dynamics Parameters
-    drone_state = state[0:12]
+    drone_state = state[0, 0:12]
     phi, theta, psi, p, q, r, u, v, w, X, Y, Z = state[0, 0:12]
 
     # Q-learning Actor and critic weights
@@ -86,8 +89,8 @@ def babyCT_b(t, state, params):
     # Kronecker Products
     diff = x-xf
     diff = diff.reshape((1, 6))
-    ud = ud.reshape((1, 4))
-    U = np.array([diff[0, 0], diff[0, 1], diff[0, 2], diff[0,3], diff[0,4], diff[0, 5], ud[0, 0], ud[0, 1], ud[0, 2],ud[0, 3]]).reshape((10, ))
+    
+    U = np.array([diff[0, 0], diff[0, 1], diff[0, 2], diff[0,3], diff[0,4], diff[0, 5], ud[1, 0], ud[1, 0], ud[2, 0],ud[3, 0]]).reshape((10, ))
     UkU = np.array([U[0]**2, U[0]*U[1], U[0]*U[2], U[0]*U[3], U[0]*U[4], U[0]*U[5], U[0]*U[6], U[0]*U[7], U[0]*U[8], U[0]*U[9],\
     U[1]**2, U[1]*U[2], U[1]*U[3], U[1]*U[4], U[1]*U[5], U[1]*U[6], U[1]*U[7], U[1]*U[8], U[0]*U[9],\
     U[2]**2, U[2]*U[3], U[2]*U[4], U[2]*U[5], U[2]*U[6], U[2]*U[7], U[2]*U[8], U[2]*U[9],\
@@ -115,27 +118,29 @@ def babyCT_b(t, state, params):
     Quu = np.array([[Wc[-10], Wc[-9], Wc[-8], Wc[-7]],
                     [Wc[-9], Wc[-6], Wc[-5], Wc[-4]],
                     [Wc[-8], Wc[-5], Wc[-3], Wc[-2]],
-                    [Wc[-7], Wc[-4], Wc[-2], Wc[-1]]])
-    print(Quu)
-    Quu = Quu.reshape((4,4))   
+                    [Wc[-7], Wc[-4], Wc[-2], Wc[-1]]]).reshape((4, 4))
+    
     Quu_inv = inv(Quu)
+    
     Qux = np.array([[Wc[6], Wc[15], Wc[23], Wc[30], Wc[36], Wc[41]],
                     [Wc[7], Wc[16], Wc[24], Wc[31], Wc[37], Wc[42]],
                     [Wc[8], Wc[17], Wc[25], Wc[32], Wc[38], Wc[43]],
-                    [Wc[9], Wc[18], Wc[26], Wc[33], Wc[39], Wc[44]]])
+                    [Wc[9], Wc[18], Wc[26], Wc[33], Wc[39], Wc[44]]]).reshape((4,6))
 
     # Integral Reinforcement Dynamics
-    dP = 0.5*((dot(x.T, dot(M, x)))+ dot(ud.T, dot(R, ud)))
+
+    dP = 0.5*((dot(x.T-xf.T, dot(M, x-xf)))+ dot(ud.T, dot(R, ud)))
     sig = UkU - UkUdel
     sig_f = UkU
     
     # Critic Errors
     ec1 = P - p_del_val + dot(Wc.T, sig)
-    ec2 = 0.5*dot(x.T, dot(Pt, x)) - dot(Wc.T, sig_f)
+    ec2 = 0.5*dot(x.T-xf.T, dot(Pt, x-xf)) - dot(Wc.T, sig_f)
 
     # Actor Errors
     Wa = np.hstack((Wa10, Wa20, Wa30, Wa40))
-    ea = dot(Wa.T, x) + dot(Quu_inv, dot(Qux, x))
+    
+    ea = dot(Wa.T, x-xf) + dot(Quu_inv, dot(Qux, x-xf))
     #term = dot(Quu_inv, dot(Qux, x))
     #ea1 = dot(Wa10.T, x) + term[0, :]
     #ea2 = dot(Wa20.T, x) + term[1, :]
@@ -149,38 +154,39 @@ def babyCT_b(t, state, params):
     
     # Actor Dynamics
     
-    dWa = -alpha_a * dot(x, ea.T)
-    dWa10 = dWa[:, 0]
-    dWa20 = dWa[:, 1]
-    dWa30 = dWa[:, 2]
-    dWa40 = dWa[:, 3]
-
-    unew = zeros(m, 1)
+    dWa = -alpha_a * dot(x-xf, ea.T)
+    dWa10 = dWa[:, 0].reshape((6,1))
+    dWa20 = dWa[:, 1].reshape((6,1))
+    dWa30 = dWa[:, 2].reshape((6,1))
+    dWa40 = dWa[:, 3].reshape((6,1))
+    
+    unew = zeros((m, 1))
     # Persistence Excitation
 
     if t <= (percent/100)*Tf:
         unew[0, 0] = ud[0] + (amplitude*exp(-0.009*t)*2*(sin(t)**2*cos(t)+sin(2*t)**2*cos(0.1*t)+sin(-1.2*t)**2*cos(0.5*t)+sin(t)**5+sin(1.12*t)**2+cos(2.4*t)*sin(2.4*t)**3))
         unew[1, 0] = ud[1] + (amplitude*exp(-0.009*t)*2*(sin(t)**2*cos(t)+sin(2*t)**2*cos(0.1*t)+sin(-1.2*t)**2*cos(0.5*t)+sin(t)**5+sin(1.12*t)**2+cos(2.4*t)*sin(2.4*t)**3))
         unew[2, 0] = ud[2] + (amplitude*exp(-0.009*t)*2*(sin(t)**2*cos(t)+sin(2*t)**2*cos(0.1*t)+sin(-1.2*t)**2*cos(0.5*t)+sin(t)**5+sin(1.12*t)**2+cos(2.4*t)*sin(2.4*t)**3))
-        unew[3, 0] = ud[4] + (amplitude*exp(-0.009*t)*2*(sin(t)**2*cos(t)+sin(2*t)**2*cos(0.1*t)+sin(-1.2*t)**2*cos(0.5*t)+sin(t)**5+sin(1.12*t)**2+cos(2.4*t)*sin(2.4*t)**3))
+        unew[3, 0] = ud[3] + (amplitude*exp(-0.009*t)*2*(sin(t)**2*cos(t)+sin(2*t)**2*cos(0.1*t)+sin(-1.2*t)**2*cos(0.5*t)+sin(t)**5+sin(1.12*t)**2+cos(2.4*t)*sin(2.4*t)**3))
     else:
         unew = ud
 
     # Convert [phi, theta, psi, altitude].T desired to u1, u2, u3, u4 moment and thrust control inputs using PID
-    u1, u2, u3, u4 = quad.PID_update(drone_state, unew[0, 0], unew[1, 0], unew[2, 0], unew[3, 0], dt) 
-
-    # Do usave in here
     
-    drone_state_dot = dynamics(t, drone_state, quad.drone_params)
+    u1, u2, u3, u4 = quad.PID_update(drone_state, unew[0, 0], unew[1, 0], unew[2, 0], unew[3, 0], dt) 
+    
+    # Do usave in here
+    u_save = np.vstack((u_save, unew.T))
+    drone_state_dot = diffEqn(t, drone_state, quad.drone_params)
     phi_dot, theta_dot, psi_dot, p_dot, q_dot, r_dot, u_dot, v_dot, w_dot, U, V, W = drone_state_dot[0:12]
     
     dx = np.array([phi_dot, theta_dot, psi_dot, p_dot, q_dot, r_dot, u_dot, v_dot, w_dot, U, V, W]).reshape(1, 12)
-
+    
     # dWc -> 1x55
     # dWa10 -> 1x6 
-    dotx = hstack((dx, dWc, dWa10.T, dWa20.T, dWa30.T, dWa40.T, dP))
+    dotx = hstack((dx, dWc.T, dWa10.T, dWa20.T, dWa30.T, dWa40.T, dP)).reshape((92,))
     
-    return dotx
+    return dotx.tolist()
     
 
 def Q_learning_dynamics(x1, x2, S):
@@ -198,7 +204,7 @@ def Q_learning_dynamics(x1, x2, S):
     
     # ODE parameter
     Tf, T, N = 10, 0.05, 200 # finite Horizon
-    alpha_c, alpha_a = 90, 1.2
+    alpha_c, alpha_a = 1, 1.2
     amplitude, percent = 0.1, 50
     
     xf = np.array([x2[0], x2[1], x2[2], 0, 0, 0]).reshape((6, 1))
@@ -206,23 +212,31 @@ def Q_learning_dynamics(x1, x2, S):
     
     # Critic Weights Wc0 = WcT*v(t)-> (n+m)(n+m+1)/2x1 = (6+4)(6+4+1)/2x1=55x1
     Wc0  = ones((55, 1))
-
+    Wc0[-1, 0] = 100
+    Wc0[-2, 0] = 0
+    Wc0[-3, 0] = 1000
+    Wc0[-4, 0] = 0
+    Wc0[-5, 0] = 100
+    Wc0[-6, 0] = 0
     # Actor Weights n x m
     # Each of Actor weights column is taken as a vector because integrators need vectors not matrices
-    Wa10 = ones((n, 1))
-    Wa20 = ones((n, 1))
-    Wa30 = ones((n, 1))
-    Wa40 = ones((n, 1))
+    Wa10 = ones((n, 1))/1000
+    Wa20 = ones((n, 1))/1000
+    Wa30 = ones((n, 1))/1000
+    Wa40 = zeros((n, 1))
+    Wa40[2, 0] = -1
 
 
     # make sure the dimension multiplication is correct
     
     u0 = np.array([dot(Wa10.T, xi-xf), dot(Wa20.T, xi-xf), dot(Wa30.T, xi-xf), dot(Wa40.T, xi-xf)]).reshape((4, 1))
+    #u0 = np.array([mass*g, 0, 0, 0]).reshape((4, 1))
     x0 = np.zeros((1, 12)).reshape((1, 12))
 
     # Appending the vectors after each row
     # state = [phi, theta, psi, p, q, r, u, v, w, X, Y, Z, Wc0(55), Wa0(6), Wa10(6), Wa20(6), Wa30(6), Wa40(6), P(1)]
     t_save = vstack(([0],))
+    global u_save
     u_save = vstack((u0.T, ))
     x_save = hstack((x0, Wc0.T, Wa10.T, Wa20.T, Wa30.T, Wa40.T, np.array([[0]]))) # This is all states
     xq_save = hstack((xi.T, )) # saving Q-learning state vector
@@ -245,10 +259,54 @@ def Q_learning_dynamics(x1, x2, S):
     xdist = norm(xi[0:3, 0] - xf[0:3, 0])
     error = 0.25
     maxIter = 10000
-    state = x_save
+    state = x_save.tolist()[:][0]
+    
     params = [xf, T, Tf, M, R, Pt, percent, amplitude, alpha_a, alpha_c, u1_del, u2_del, u3_del, u4_del, x1_del, x2_del, x3_del, x4_del, x5_del, x6_del, p_del, u_save]
+    
+    
+    
+    t = np.arange(0, 1, dt)
+    sol = np.empty((len(t), 92))
         
-    dotx = babyCT_b(0, state, params)
+    solver = ode(babyCT_b)
+    solver.set_integrator('dop853', atol = 10**(-15), rtol = 10**(-15))
+    solver.set_f_params(params)
+    solver.set_initial_value(state, t[0])
+    i = 1;
+    #sol[0] = state;
+    dotx = babyCT_b(t[i], state, params)
+    
+    while solver.successful() and i < len(t):
+        
+        solver.integrate(t[i])
+        solver.set_f_params(params)
+        print(solver.successful())
+        print(solver.y.shape)
+        print(type(dotx))
+        sol[i] = solver.y
+        state = solver.y
+        phi, theta, psi = state[0:3]
+        u, v, w = state[6:9]
+        R_mat = Rot(phi, theta, psi)
+         
+        Vels = np.dot(R_mat, np.array([u, v, w]).T)
+        X = state[9]
+        Y = state[10]
+        Z = state[11]
+        U = Vels[0]
+        V = Vels[1]
+        W = Vels[2]
+
+        x = np.array([X, Y, Z, U, V, W]).reshape(6, 1)
+        
+        t_save = vstack((t_save, t[i]))
+        x_save = vstack((x_save, state))
+        xq_save = vstack((xq_save, x.T))
+            
+        # MAKE SURE TO SAVE U PROPERLY
+        u_save = vstack((u_save, ))
+        i = i + 1
+        
     '''
     for iter in range(1, maxIter+1):
         t = [(iter-1)*T, iter*T]
@@ -258,15 +316,17 @@ def Q_learning_dynamics(x1, x2, S):
         sol = np.empty((len(t), 92))
         
         solver = ode(babyCT_b)
-        solver.set_integrator('dop853')
+        solver.set_integrator('dop853', atol = 10**(-15), rtol = 10**(-15))
         solver.set_f_params(params)
         solver.set_initial_value(state, t[0])
 
         i = 1;
         sol[0] = state;
         while solver.successful() or i < len(t):
+            dotx = babyCT_b(t[i], state, params)
             solver.integrate(t[i])
             solver.set_f_params(params)
+            print(dotx)
             sol[i] = solver.y
             state = solver.y
             phi, theta, psi = state[0, 0:3]
@@ -290,7 +350,7 @@ def Q_learning_dynamics(x1, x2, S):
             # MAKE SURE TO SAVE U PROPERLY
             u_save = vstack((u_save, ))
             i = i + 1
-            print(state)
+            
     
         # Interpolate functions
         u1_del = interp2PWC(u_save[:, 0], -1, iter*T+0.01)
@@ -306,7 +366,8 @@ def Q_learning_dynamics(x1, x2, S):
         x5_del = interp2PWC(xq_save[:, 4], -1, iter*T+0.01)
         x6_del = interp2PWC(xq_save[:, 5], -1, iter*T+0.01)
         p_del = interp2PWC(x_save[:, -1], -1, iter*T+0.01)
-       '''
+    '''
     return
 
 Q_learning_dynamics([0, 0, 0], [5, 5, 5], 0)
+
